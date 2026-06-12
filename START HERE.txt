@@ -1,0 +1,53 @@
+CommLoan Broker Intelligence — Interactive Demo
+==============================================
+Aligned with Kickoff v2 (June 10, 2026)
+
+HOW TO OPEN
+-----------
+1. Unzip if needed.
+2. Double-click: index.html
+3. No install or login required.
+
+
+MODE A — P1 VERIFY & ENRICH (existing brokers)
+----------------------------------------------
+• Select "P1 — Verify & Enrich"
+• Enter Demo
+• Excel tab only (HTML/URL disabled per Kickoff)
+• Click Excel upload area → mock workbook loads
+• Extract Brokers → Preview
+• Optional: remove rows, then "Approve All"
+• Processing → Results (no score column)
+• Try Workbook, CSV, Research Pack exports
+• Dashboard shows row status counts only
+
+Sample brokers: Marcus Whitfield (CBRE), Jennifer Alvarez (JLL), etc.
+
+
+MODE B — P2 PROSPECT & SCORE (new prospects)
+--------------------------------------------
+• Select "P2 — Prospect & Score"
+• Enter Demo
+• Use HTML, URL, or Excel tab (different prospect lists)
+• URL tab: try https://www.walkerdunlop.com/... (works)
+  OR https://linkedin.com/... (shows login-gated → use HTML upload)
+• Preview → Approve All → Processing
+• Results show Score + Priority Tier
+• Open Hannah Price or Caitlin Morgan → Broker Card → Print/PDF
+• Dashboard: tiers, average score, Top 10
+
+Sample prospects: Elena Vasquez, Hannah Price, Caitlin Morgan, etc.
+(Different people from P1 — not the same production roster.)
+
+
+RESET
+-----
+Click "Reset Demo" in the header between P1 and P2 runs.
+
+
+FILES
+-----
+index.html, input.html, preview.html, processing.html,
+results.html, broker.html, card.html, dashboard.html
+js/data.js, js/prospects-data.js, js/scoring.js, js/app.js
+css/styles.css

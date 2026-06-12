@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Broker Detail — CommLoan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header" id="site-header"></header>
+    <main class="main-content">
+      <div class="breadcrumb no-print">
+        <a href="index.html">Home</a><span class="sep">/</span>
+        <a href="results.html">Results</a><span class="sep">/</span>
+        <span id="bc-name">Broker</span>
+      </div>
+
+      <div class="flex-between mb-2">
+        <div>
+          <h1 class="page-title" id="broker-name">—</h1>
+          <p class="page-subtitle" style="margin-bottom:0" id="broker-company">—</p>
+        </div>
+        <div class="flex gap-1 no-print">
+          <a href="results.html" class="btn btn-secondary">← Results</a>
+          <a href="#" class="btn btn-primary hidden" id="btn-card">Broker Card →</a>
+        </div>
+      </div>
+
+      <div class="detail-grid">
+        <div>
+          <div class="card detail-section">
+            <h3>Contact &amp; Profile</h3>
+            <div id="contact-fields"></div>
+          </div>
+
+          <div class="card detail-section">
+            <h3>Deal Signals &amp; Personalization</h3>
+            <div id="deal-fields"></div>
+          </div>
+
+          <div class="card detail-section">
+            <h3>Evidence &amp; Sources</h3>
+            <div id="evidence-fields"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card hidden" id="score-panel">
+            <h3>Broker Score</h3>
+            <div class="score-total">
+              <div class="score-number" id="score-number">—</div>
+              <div class="mt-1"><span class="badge" id="score-tier">—</span></div>
+            </div>
+            <ul class="score-breakdown" id="score-breakdown"></ul>
+          </div>
+
+          <div class="card">
+            <h3>Research Status</h3>
+            <div id="status-fields"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/prospects-data.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (!requireDemo() || !requireMode()) throw new Error("redirect");
+    renderHeader("broker.html");
+
+    const id = getQueryParam("id");
+    const broker = getBrokerById(id);
+    if (!broker) { window.location.href = "results.html"; throw new Error("not found"); }
+
+    const p2 = isP2();
+    document.getElementById("broker-name").textContent = broker.name;
+    document.getElementById("broker-company").textContent = broker.company + " · " + broker.city + ", " + broker.state;
+    document.getElementById("bc-name").textContent = broker.name;
+    document.title = broker.name + " — CommLoan";
+
+    if (p2) {
+      document.getElementById("btn-card").classList.remove("hidden");
+      document.getElementById("btn-card").href = "card.html?id=" + broker.id;
+      document.getElementById("score-panel").classList.remove("hidden");
+      document.getElementById("score-number").textContent = broker.score;
+      document.getElementById("score-number").className = "score-number " + getScoreColorClass(broker.score);
+      const tierEl = document.getElementById("score-tier");
+      tierEl.textContent = broker.priorityTier;
+      tierEl.className = "badge " + getTierBadgeClass(broker.priorityTier);
+
+      document.getElementById("score-breakdown").innerHTML = SCORE_CRITERIA.map((c) => {
+        const pts = broker.scoreBreakdown[c.key];
+        const pct = (pts / c.max) * 100;
+        return `<li>
+          <span style="min-width:180px">${c.label}</span>
+          <div class="score-bar-wrap"><div class="score-bar" style="width:${pct}%"></div></div>
+          <strong>${pts}/${c.max}</strong>
+        </li>`;
+      }).join("");
+    }
+
+    function field(label, value) {
+      return `<div class="field-row"><span class="field-label">${label}</span><span class="field-value">${value}</span></div>`;
+    }
+
+    document.getElementById("contact-fields").innerHTML = [
+      field("Email", formatMaskedEmailHtml(broker.email, broker.id)),
+      field("Phone", `<span class="text-muted">${maskContactPhone(broker.phone, broker.id)}</span>`),
+      field("LinkedIn", formatMaskedLinkedInHtml(broker.linkedin, broker.id)),
+      field("Last Employer", broker.lastEmployer),
+      field("Only CRE/Mortgage", broker.onlyCreMortgage),
+      field("Years in CRE", broker.yearsInCre),
+      field("2025 Volume", broker.volume2025),
+      field("Affiliations", broker.affiliations),
+    ].join("");
+
+    document.getElementById("deal-fields").innerHTML = [
+      field("Activity Level", activityBadge(broker.activityLevel)),
+      field("Deal Signals", broker.dealSignals),
+      field("Personalization Hook", `<em>"${broker.personalizationHook}"</em>`),
+    ].join("");
+
+    document.getElementById("evidence-fields").innerHTML = [
+      field("Confidence", confidenceBadge(broker.confidence)),
+      field("Evidence Notes", broker.evidenceNotes),
+      field("Sources", (broker.evidenceSources || []).map((s) =>
+        formatEvidenceSourceHtml(s, broker.id)
+      ).join("<br>")),
+    ].join("");
+
+    const statusHtml = [
+      field("Row Status", statusBadge(broker.rowStatus)),
+      field("Manual Review", broker.manualReviewFlag
+        ? `<span class="badge badge-review">Required</span> — ${broker.manualReviewReason}`
+        : '<span class="badge badge-complete">Not Required</span>'),
+    ];
+    if (!p2) {
+      statusHtml.push(
+        field("Lead Source", broker.leadSource || CRM_PLACEHOLDER),
+        field("Funded Volume", broker.fundedVolume || CRM_PLACEHOLDER),
+        field("Appraisal Volume", broker.appraisalVolume || CRM_PLACEHOLDER)
+      );
+    }
+    document.getElementById("status-fields").innerHTML = statusHtml.join("");
+  </script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Processing — CommLoan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header" id="site-header"></header>
+    <main class="main-content">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a><span class="sep">/</span>
+        <a href="input.html">Input</a><span class="sep">/</span><span>Processing</span>
+      </div>
+
+      <div class="progress-header">
+        <div>
+          <h1 class="page-title" id="process-title">Enriching Brokers…</h1>
+          <p class="page-subtitle" style="margin-bottom:0" id="process-subtitle">AI agents are researching each broker profile</p>
+        </div>
+        <button class="btn btn-primary hidden" id="btn-results">View Results →</button>
+      </div>
+
+      <div class="progress-stats" id="stats">
+        <div class="stat-card"><div class="stat-value" id="stat-total">12</div><div class="stat-label">Total Brokers</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-done">0</div><div class="stat-label">Completed</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-active">0</div><div class="stat-label">In Progress</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-pct">0%</div><div class="stat-label">Overall Progress</div></div>
+      </div>
+
+      <div class="card mb-2">
+        <div class="flex-between mb-2">
+          <span class="text-sm font-weight-600">Overall Progress</span>
+          <span class="text-sm text-muted" id="progress-label">0 / 12</span>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+      </div>
+
+      <div class="card">
+        <h3 class="mb-2">Pipeline Steps</h3>
+        <ul class="process-list" id="pipeline-steps"></ul>
+      </div>
+
+      <div class="card mt-3">
+        <h3 class="mb-2">Broker Queue</h3>
+        <ul class="process-list" id="broker-queue"></ul>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/prospects-data.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (!requireDemo() || !requireMode()) throw new Error("redirect");
+    if (!AppState.isPreviewApproved()) { window.location.href = "preview.html"; throw new Error("redirect"); }
+    renderHeader("processing.html");
+
+    const p2 = isP2();
+    const brokers = AppState.getBrokers();
+    const total = brokers.length;
+
+    document.getElementById("stat-total").textContent = total;
+
+    const pipelineSteps = p2
+      ? [
+          { title: "Identity Resolution", desc: "Match broker to public profiles and licensing records" },
+          { title: "Employment Verification", desc: "Confirm current employer via Tier 1 sources" },
+          { title: "Deal Signal Research", desc: "Search press releases, lender announcements, and news" },
+          { title: "Scoring Engine", desc: "Calculate 7-criterion broker score and priority tier" },
+          { title: "Quality Review", desc: "Flag low-confidence rows for manual review" },
+        ]
+      : [
+          { title: "Identity Resolution", desc: "Match broker to public profiles and licensing records" },
+          { title: "Employment Verification", desc: "Confirm current employer via Tier 1 sources" },
+          { title: "Deal Signal Research", desc: "Search press releases, lender announcements, and news" },
+          { title: "Personalization", desc: "Generate outreach hooks from recent deal activity" },
+          { title: "Quality Review", desc: "Flag low-confidence rows for manual review" },
+        ];
+
+    const pipelineEl = document.getElementById("pipeline-steps");
+    pipelineEl.innerHTML = pipelineSteps.map((s, i) => `
+      <li class="process-item" id="step-${i}">
+        <div class="process-icon pending" id="step-icon-${i}">${i + 1}</div>
+        <div>
+          <div class="process-title">${s.title}</div>
+          <div class="process-desc">${s.desc}</div>
+        </div>
+      </li>
+    `).join("");
+
+    const queueEl = document.getElementById("broker-queue");
+    queueEl.innerHTML = brokers.map((b, i) => `
+      <li class="process-item" id="broker-${i}">
+        <div class="process-icon pending" id="broker-icon-${i}">⏳</div>
+        <div>
+          <div class="process-title">${b.name} — ${b.company}</div>
+          <div class="process-desc" id="broker-status-${i}">Waiting…</div>
+        </div>
+      </li>
+    `).join("");
+
+    let done = 0;
+    let currentStep = 0;
+    const statuses = ["Resolving identity…", "Verifying employment…", "Researching deals…", p2 ? "Calculating score…" : "Generating hook…", "Quality check…", "Complete ✓"];
+
+    function updateUI() {
+      document.getElementById("stat-done").textContent = done;
+      document.getElementById("stat-active").textContent = done < total ? 1 : 0;
+      const pct = Math.round((done / total) * 100);
+      document.getElementById("stat-pct").textContent = pct + "%";
+      document.getElementById("progress-bar").style.width = pct + "%";
+      document.getElementById("progress-label").textContent = done + " / " + total;
+    }
+
+    function setStepActive(idx) {
+      for (let i = 0; i < pipelineSteps.length; i++) {
+        const icon = document.getElementById("step-icon-" + i);
+        icon.className = "process-icon " + (i < idx ? "done" : i === idx ? "active" : "pending");
+        icon.textContent = i < idx ? "✓" : i + 1;
+      }
+    }
+
+    function processBroker(idx) {
+      if (idx >= total) {
+        AppState.setBrokers(brokers);
+        AppState.setProcessingComplete(true);
+        document.getElementById("process-title").textContent = "Enrichment Complete";
+        document.getElementById("process-subtitle").textContent = "All " + total + " brokers processed successfully";
+        document.getElementById("btn-results").classList.remove("hidden");
+        setStepActive(pipelineSteps.length);
+        return;
+      }
+
+      const icon = document.getElementById("broker-icon-" + idx);
+      const statusEl = document.getElementById("broker-status-" + idx);
+      icon.className = "process-icon active";
+      icon.textContent = "⟳";
+
+      let step = 0;
+      const interval = setInterval(() => {
+        statusEl.textContent = statuses[step];
+        setStepActive(Math.min(step, pipelineSteps.length - 1));
+        step++;
+        if (step >= statuses.length) {
+          clearInterval(interval);
+          icon.className = "process-icon done";
+          icon.textContent = "✓";
+          statusEl.textContent = p2
+            ? `Score: ${brokers[idx].score} — ${brokers[idx].priorityTier}`
+            : `Status: ${brokers[idx].rowStatus} — ${brokers[idx].confidence} confidence`;
+          done++;
+          updateUI();
+          setTimeout(() => processBroker(idx + 1), 200);
+        }
+      }, 350);
+    }
+
+    if (AppState.getProcessingComplete()) {
+      done = total;
+      updateUI();
+      document.getElementById("progress-bar").style.width = "100%";
+      document.getElementById("process-title").textContent = "Enrichment Complete";
+      document.getElementById("btn-results").classList.remove("hidden");
+      brokers.forEach((b, i) => {
+        document.getElementById("broker-icon-" + i).className = "process-icon done";
+        document.getElementById("broker-icon-" + i).textContent = "✓";
+        document.getElementById("broker-status-" + i).textContent = p2
+          ? `Score: ${b.score} — ${b.priorityTier}`
+          : `Status: ${b.rowStatus}`;
+      });
+      setStepActive(pipelineSteps.length);
+    } else {
+      updateUI();
+      setTimeout(() => processBroker(0), 500);
+    }
+
+    document.getElementById("btn-results").addEventListener("click", () => {
+      window.location.href = "results.html";
+    });
+  </script>
+</body>
+</html>

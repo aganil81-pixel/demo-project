@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Results — CommLoan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header" id="site-header"></header>
+    <main class="main-content wide">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a><span class="sep">/</span><span>Results</span>
+      </div>
+      <h1 class="page-title">Enriched Broker Results</h1>
+      <p class="page-subtitle" id="results-subtitle"></p>
+
+      <div class="toolbar no-print">
+        <div class="toolbar-left">
+          <input type="search" class="search-input" id="search" placeholder="Search brokers…" />
+          <select class="form-select" id="filter-status" style="width:auto">
+            <option value="">All Statuses</option>
+            <option value="Complete">Complete</option>
+            <option value="Partial">Partial</option>
+            <option value="Review Required">Review Required</option>
+            <option value="No Match">No Match</option>
+          </select>
+          <select class="form-select hidden" id="filter-tier" style="width:auto">
+            <option value="">All Tiers</option>
+            <option value="Priority">Priority</option>
+            <option value="Nurture">Nurture</option>
+            <option value="Low Priority">Low Priority</option>
+          </select>
+          <select class="form-select" id="sort-by" style="width:auto">
+            <option value="name">Sort: Name</option>
+            <option value="company">Sort: Company</option>
+            <option value="state">Sort: State</option>
+            <option value="score">Sort: Score</option>
+          </select>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-secondary btn-sm" onclick="exportCSV()">Export CSV</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportResearchPack()">Research Pack</button>
+          <a href="dashboard.html" class="btn btn-secondary btn-sm">Dashboard</a>
+          <a href="input.html" class="btn btn-primary btn-sm">New Run</a>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr id="table-head"></tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/prospects-data.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (!requireDemo() || !requireMode()) throw new Error("redirect");
+    renderHeader("results.html");
+
+    const p2 = isP2();
+    let brokers = AppState.getBrokers();
+
+    document.getElementById("results-subtitle").textContent = p2
+      ? brokers.length + " prospects scored and prioritized for outreach"
+      : brokers.length + " brokers enriched — verification complete (no scores in Mode A)";
+
+    if (p2) document.getElementById("filter-tier").classList.remove("hidden");
+    else {
+      const scoreOpt = document.getElementById("sort-by").querySelector('[value="score"]');
+      if (scoreOpt) scoreOpt.remove();
+    }
+
+    const p1Cols = ["Name", "Company", "State", "Last Employer", "CRE", "Years", "Volume", "Email", "Phone", "LinkedIn", "Activity", "Confidence", "Status"];
+    const p2Cols = ["Score", "Tier", "Name", "Company", "State", "Last Employer", "Volume", "Email", "Phone", "LinkedIn", "Activity", "Deal Signals", "Personalization", "Confidence", "Status"];
+    const cols = p2 ? p2Cols : p1Cols;
+    document.getElementById("table-head").innerHTML = cols.map((c) => `<th>${c}</th>`).join("") + "<th></th>";
+
+    function contactCells(b) {
+      return `
+        <td>${formatMaskedEmailHtml(b.email, b.id)}</td>
+        <td><span class="text-muted">${maskContactPhone(b.phone, b.id)}</span></td>
+        <td>${formatMaskedLinkedInHtml(b.linkedin, b.id)}</td>
+      `;
+    }
+
+    function signalCells(b) {
+      if (!p2) {
+        return `
+          <td>${activityBadge(b.activityLevel)}</td>
+          <td>${confidenceBadge(b.confidence)}</td>
+          <td>${statusBadge(b.rowStatus)}</td>
+        `;
+      }
+      return `
+        <td>${activityBadge(b.activityLevel)}</td>
+        <td class="cell-truncate">${truncateText(b.dealSignals, 120)}</td>
+        <td class="cell-truncate">${truncateText(b.personalizationHook, 120)}</td>
+        <td>${confidenceBadge(b.confidence)}</td>
+        <td>${statusBadge(b.rowStatus)}</td>
+      `;
+    }
+
+    function renderTable() {
+      const q = document.getElementById("search").value.toLowerCase();
+      const statusF = document.getElementById("filter-status").value;
+      const tierF = p2 ? document.getElementById("filter-tier").value : "";
+      const sortKey = document.getElementById("sort-by").value;
+
+      let filtered = brokers.filter((b) => {
+        const matchQ = !q || b.name.toLowerCase().includes(q) || b.company.toLowerCase().includes(q);
+        const matchS = !statusF || b.rowStatus === statusF;
+        const matchT = !tierF || b.priorityTier === tierF;
+        return matchQ && matchS && matchT;
+      });
+
+      filtered = sortBrokers(filtered, sortKey, p2 && sortKey === "score" ? "desc" : "asc");
+
+      document.getElementById("results-body").innerHTML = filtered.map((b) => {
+        if (p2) {
+          return `<tr class="clickable" onclick="location.href='broker.html?id=${b.id}'">
+            <td><span class="${getScoreColorClass(b.score)}">${b.score}</span></td>
+            <td><span class="badge ${getTierBadgeClass(b.priorityTier)}">${b.priorityTier}</span></td>
+            <td><strong>${b.name}</strong></td>
+            <td>${b.company}</td>
+            <td>${b.state}</td>
+            <td>${b.lastEmployer}</td>
+            <td>${b.volume2025}</td>
+            ${contactCells(b)}
+            ${signalCells(b)}
+            <td><a href="broker.html?id=${b.id}" class="btn btn-ghost btn-sm" onclick="event.stopPropagation()">View →</a></td>
+          </tr>`;
+        }
+        return `<tr class="clickable" onclick="location.href='broker.html?id=${b.id}'">
+          <td><strong>${b.name}</strong></td>
+          <td>${b.company}</td>
+          <td>${b.state}</td>
+          <td>${b.lastEmployer}</td>
+          <td>${b.onlyCreMortgage}</td>
+          <td>${b.yearsInCre}</td>
+          <td>${b.volume2025}</td>
+          ${contactCells(b)}
+          ${signalCells(b)}
+          <td><a href="broker.html?id=${b.id}" class="btn btn-ghost btn-sm" onclick="event.stopPropagation()">View →</a></td>
+        </tr>`;
+      }).join("");
+    }
+
+    document.getElementById("search").addEventListener("input", renderTable);
+    document.getElementById("filter-status").addEventListener("change", renderTable);
+    if (p2) document.getElementById("filter-tier").addEventListener("change", renderTable);
+    document.getElementById("sort-by").addEventListener("change", renderTable);
+
+    renderTable();
+  </script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Extraction Preview — CommLoan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header" id="site-header"></header>
+    <main class="main-content wide">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a><span class="sep">/</span>
+        <a href="input.html">Input</a><span class="sep">/</span><span>Preview</span>
+      </div>
+      <h1 class="page-title">Extraction Preview</h1>
+      <p class="page-subtitle">Review extracted rows. Remove invalid records, then approve before enrichment begins.</p>
+
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <span class="badge badge-complete" id="row-count">0 rows extracted</span>
+          <button class="btn btn-secondary btn-sm" id="btn-remove-selected" disabled>Remove Selected</button>
+        </div>
+        <div class="toolbar-right">
+          <a href="input.html" class="btn btn-secondary">← Re-upload</a>
+          <button class="btn btn-primary" id="btn-approve">Approve All →</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:40px"><input type="checkbox" id="select-all" title="Select all" /></th>
+              <th>#</th>
+              <th>Name</th>
+              <th>Company</th>
+              <th>State</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="preview-body"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/prospects-data.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (!requireDemo() || !requireMode()) throw new Error("redirect");
+    renderHeader("preview.html");
+
+    let rows = [...AppState.getExtracted()];
+
+    function updateCount() {
+      document.getElementById("row-count").textContent = rows.length + " rows extracted";
+      document.getElementById("btn-approve").disabled = rows.length === 0;
+    }
+
+    function getSelectedIds() {
+      return [...document.querySelectorAll(".row-select:checked")].map((cb) => cb.dataset.id);
+    }
+
+    function updateRemoveBtn() {
+      document.getElementById("btn-remove-selected").disabled = getSelectedIds().length === 0;
+    }
+
+    function renderRows() {
+      document.getElementById("preview-body").innerHTML = rows.map((r, i) => `
+        <tr>
+          <td><input type="checkbox" class="row-select" data-id="${r.id}" /></td>
+          <td>${i + 1}</td>
+          <td><strong>${r.name}</strong></td>
+          <td>${r.company}</td>
+          <td>${r.state}</td>
+          <td>${formatMaskedEmailHtml(r.email, r.id)}</td>
+          <td><span class="text-muted">${maskContactPhone(r.phone, r.id)}</span></td>
+          <td><button class="btn btn-ghost btn-sm btn-remove" data-id="${r.id}">Remove</button></td>
+        </tr>
+      `).join("");
+
+      document.querySelectorAll(".row-select").forEach((cb) => {
+        cb.addEventListener("change", updateRemoveBtn);
+      });
+      document.querySelectorAll(".btn-remove").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          rows = rows.filter((r) => r.id !== btn.dataset.id);
+          AppState.setExtracted(rows);
+          renderRows();
+          updateCount();
+          updateRemoveBtn();
+        });
+      });
+      updateCount();
+      updateRemoveBtn();
+    }
+
+    document.getElementById("select-all").addEventListener("change", (e) => {
+      document.querySelectorAll(".row-select").forEach((cb) => { cb.checked = e.target.checked; });
+      updateRemoveBtn();
+    });
+
+    document.getElementById("btn-remove-selected").addEventListener("click", () => {
+      const ids = new Set(getSelectedIds());
+      rows = rows.filter((r) => !ids.has(r.id));
+      AppState.setExtracted(rows);
+      document.getElementById("select-all").checked = false;
+      renderRows();
+    });
+
+    document.getElementById("btn-approve").addEventListener("click", () => {
+      if (!rows.length) return;
+      AppState.setExtracted(rows);
+      approvePreviewAndLoadBrokers();
+      AppState.setProcessingComplete(false);
+      window.location.href = "processing.html";
+    });
+
+    renderRows();
+  </script>
+</body>
+</html>

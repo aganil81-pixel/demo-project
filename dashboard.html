@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — CommLoan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header" id="site-header"></header>
+    <main class="main-content wide">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a><span class="sep">/</span>
+        <a href="results.html">Results</a><span class="sep">/</span>
+        <span>Dashboard</span>
+      </div>
+      <h1 class="page-title">Summary Dashboard</h1>
+      <p class="page-subtitle" id="dash-subtitle"></p>
+
+      <div class="toolbar">
+        <div class="toolbar-left"></div>
+        <div class="toolbar-right">
+          <button class="btn btn-secondary btn-sm" onclick="exportDashboardSummary()">Export Dashboard</button>
+          <a href="results.html" class="btn btn-primary btn-sm">View All Results →</a>
+        </div>
+      </div>
+
+      <div class="metric-grid" id="metrics"></div>
+
+      <div class="grid-2">
+        <div class="card" id="panel-status">
+          <h3>Research Status</h3>
+          <div id="status-chart" class="mt-2"></div>
+        </div>
+        <div class="card hidden" id="panel-tiers">
+          <h3>Priority Tier Distribution</h3>
+          <div class="tier-chart" id="tier-chart"></div>
+          <div class="grid-3 text-center text-sm" id="tier-legend"></div>
+        </div>
+      </div>
+
+      <div class="card mt-3 hidden" id="panel-top10">
+        <h3 class="mb-2">Top 10 Prospects by Score</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th><th>Name</th><th>Company</th><th>State</th>
+                <th>Score</th><th>Tier</th><th>Volume 2025</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="top10-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/prospects-data.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (!requireDemo() || !requireMode()) throw new Error("redirect");
+    renderHeader("dashboard.html");
+
+    const p2 = isP2();
+    const brokers = AppState.getBrokers();
+    const statuses = {};
+    let reviewCount = 0;
+
+    brokers.forEach((b) => {
+      statuses[b.rowStatus] = (statuses[b.rowStatus] || 0) + 1;
+      if (b.manualReviewFlag) reviewCount++;
+    });
+
+    document.getElementById("dash-subtitle").textContent = p2
+      ? "Prospect scoring overview and outreach prioritization"
+      : "Enrichment run summary — row status counts (Mode A has no scores)";
+
+    const metrics = p2
+      ? (() => {
+          const tiers = { Priority: 0, Nurture: 0, "Low Priority": 0 };
+          brokers.forEach((b) => { if (b.priorityTier) tiers[b.priorityTier]++; });
+          const avg = (brokers.reduce((s, b) => s + b.score, 0) / brokers.length).toFixed(1);
+          return [
+            { label: "Total Prospects", value: brokers.length },
+            { label: "Average Score", value: avg },
+            { label: "Priority Tier", value: tiers.Priority },
+            { label: "Needs Review", value: reviewCount },
+          ];
+        })()
+      : [
+          { label: "Total Brokers", value: brokers.length },
+          { label: "Complete", value: statuses.Complete || 0 },
+          { label: "Review Required", value: statuses["Review Required"] || 0 },
+          { label: "Needs Manual Review", value: reviewCount },
+        ];
+
+    document.getElementById("metrics").innerHTML = metrics.map((m) => `
+      <div class="metric-card">
+        <div class="metric-value">${m.value}</div>
+        <div class="metric-label">${m.label}</div>
+      </div>
+    `).join("");
+
+    document.getElementById("status-chart").innerHTML = Object.entries(statuses).map(([k, v]) => `
+      <div class="flex-between" style="padding:0.6rem 0;border-bottom:1px solid var(--border);font-size:0.875rem">
+        <span>${statusBadge(k)}</span>
+        <strong>${v}</strong>
+      </div>
+    `).join("");
+
+    if (p2) {
+      document.getElementById("panel-tiers").classList.remove("hidden");
+      document.getElementById("panel-top10").classList.remove("hidden");
+
+      const tiers = { Priority: 0, Nurture: 0, "Low Priority": 0 };
+      brokers.forEach((b) => { tiers[b.priorityTier]++; });
+      const maxTier = Math.max(...Object.values(tiers), 1);
+      const sorted = [...brokers].sort((a, b) => b.score - a.score);
+
+      document.getElementById("tier-chart").innerHTML = [
+        { key: "Priority", cls: "priority", count: tiers.Priority },
+        { key: "Nurture", cls: "nurture", count: tiers.Nurture },
+        { key: "Low", cls: "low", count: tiers["Low Priority"] },
+      ].map((t) => `
+        <div class="tier-bar ${t.cls}" style="height:${Math.max(20, (t.count / maxTier) * 100)}px">
+          <strong>${t.count}</strong><span>${t.key}</span>
+        </div>
+      `).join("");
+
+      document.getElementById("tier-legend").innerHTML = Object.entries(tiers).map(([k, v]) =>
+        `<div><span class="badge ${getTierBadgeClass(k)}">${k}</span><div class="text-muted mt-1">${v} prospects</div></div>`
+      ).join("");
+
+      document.getElementById("top10-body").innerHTML = sorted.slice(0, 10).map((b, i) => `
+        <tr class="clickable" onclick="location.href='broker.html?id=${b.id}'">
+          <td><strong>#${i + 1}</strong></td>
+          <td>${b.name}</td><td>${b.company}</td><td>${b.state}</td>
+          <td><span class="${getScoreColorClass(b.score)}">${b.score}</span></td>
+          <td><span class="badge ${getTierBadgeClass(b.priorityTier)}">${b.priorityTier}</span></td>
+          <td>${b.volume2025}</td>
+          <td><a href="broker.html?id=${b.id}" class="btn btn-ghost btn-sm" onclick="event.stopPropagation()">View</a></td>
+        </tr>
+      `).join("");
+    }
+  </script>
+</body>
+</html>

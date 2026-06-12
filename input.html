@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Input — CommLoan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header" id="site-header"></header>
+    <main class="main-content">
+      <div class="breadcrumb">
+        <a href="index.html">Home</a><span class="sep">/</span><span>Input</span>
+      </div>
+      <h1 class="page-title">Broker Input</h1>
+      <p class="page-subtitle" id="input-subtitle">Upload your existing CommLoan broker roster for verification and enrichment.</p>
+
+      <div class="card hidden" id="url-auth-alert" style="margin-bottom:1rem;border-color:#f59e0b;background:#fffbeb">
+        <strong>Login-gated page detected.</strong>
+        <p class="text-sm mt-1">This URL requires authentication. Please save the page as HTML and use <strong>HTML Upload</strong> instead.</p>
+      </div>
+
+      <div class="card" id="tabs-container">
+        <div class="tabs" id="input-tabs">
+          <button class="tab active" data-tab="panel-excel">Excel Upload</button>
+          <button class="tab" data-tab="panel-html" id="tab-html">HTML Upload</button>
+          <button class="tab" data-tab="panel-url" id="tab-url">URL Input</button>
+        </div>
+
+        <div class="tab-panel active" id="panel-excel">
+          <div class="upload-zone" id="upload-excel">
+            <div class="upload-icon">📊</div>
+            <p><strong>Drop your Excel file here</strong> or click to browse</p>
+            <p class="text-sm mt-1">Accepts .xlsx, .xls — sheet: "2026 Signup &amp; Production"</p>
+            <p class="file-name hidden" id="excel-file-name"></p>
+          </div>
+          <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" class="hidden" />
+          <p class="text-sm text-muted mt-2" id="excel-hint">Demo: click upload area to load <em>2026_Brokers_Production_0609.xlsx</em> (12 brokers)</p>
+        </div>
+
+        <div class="tab-panel" id="panel-html">
+          <div class="upload-zone" id="upload-html">
+            <div class="upload-icon">🌐</div>
+            <p><strong>Drop an HTML broker directory page</strong> or click to browse</p>
+            <p class="text-sm mt-1">Extracts broker names, companies, and states from saved HTML. Contact fields shown encrypted until enrichment completes.</p>
+            <p class="file-name hidden" id="html-file-name"></p>
+          </div>
+          <input type="file" id="html-input" accept=".html,.htm,.txt" class="hidden" />
+          <p class="text-sm text-muted mt-2">Demo: click upload area to load <em>cref2025_attendee_directory.html</em> (10 prospects)</p>
+        </div>
+
+        <div class="tab-panel" id="panel-url">
+          <div class="form-group">
+            <label class="form-label">Broker Directory or Team Page URL</label>
+            <input type="url" class="form-input" id="url-input" placeholder="https://www.example.com/team" />
+          </div>
+          <p class="text-sm text-muted mt-1">AI will crawl the page and extract broker profiles.</p>
+          <p class="text-sm text-muted">Demo: use a public team page URL, or try a login-gated URL to see the HTML upload prompt.</p>
+        </div>
+
+        <div class="flex-between mt-3">
+          <a href="index.html" class="btn btn-secondary">← Back</a>
+          <button class="btn btn-primary" id="btn-extract" disabled>Extract Brokers →</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/prospects-data.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if (!requireDemo() || !requireMode()) throw new Error("redirect");
+    renderHeader("input.html");
+
+    const p2 = isP2();
+    const tabHtml = document.getElementById("tab-html");
+    const tabUrl = document.getElementById("tab-url");
+
+    if (!p2) {
+      tabHtml.classList.add("disabled");
+      tabUrl.classList.add("disabled");
+      document.getElementById("input-subtitle").textContent =
+        "Upload your existing CommLoan broker roster (Excel only in Mode A).";
+    } else {
+      document.getElementById("input-subtitle").textContent =
+        "Import new broker prospects from Excel, saved HTML, or a public team page URL.";
+      document.getElementById("excel-hint").innerHTML =
+        "Demo: click upload area to load <em>cref2025_prospect_list.xlsx</em> (4 prospects)";
+    }
+
+    initTabs(document.getElementById("tabs-container"));
+
+    let inputReady = false;
+    let activeInput = "excel";
+
+    function setupUpload(zoneId, inputId, nameId, label) {
+      const zone = document.getElementById(zoneId);
+      const input = document.getElementById(inputId);
+      const nameEl = document.getElementById(nameId);
+
+      zone.addEventListener("click", () => input.click());
+      zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+      zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zone.classList.remove("dragover");
+        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0], label, nameEl);
+      });
+      input.addEventListener("change", () => {
+        if (input.files.length) handleFile(input.files[0], label, nameEl);
+      });
+    }
+
+    function setInputReady(ready) {
+      inputReady = ready;
+      document.getElementById("btn-extract").disabled = !ready;
+    }
+
+    function handleFile(file, label, nameEl) {
+      nameEl.textContent = "✓ " + label + ": " + file.name;
+      nameEl.classList.remove("hidden");
+      setInputReady(true);
+    }
+
+    function setActiveInput(type) {
+      activeInput = type;
+      document.getElementById("url-auth-alert").classList.add("hidden");
+      if (type === "excel" && document.getElementById("excel-file-name").textContent) setInputReady(true);
+      else if (type === "html" && document.getElementById("html-file-name").textContent) setInputReady(true);
+      else if (type === "url" && document.getElementById("url-input").value.trim() && !isLoginGatedUrl(document.getElementById("url-input").value)) setInputReady(true);
+      else setInputReady(false);
+    }
+
+    setupUpload("upload-excel", "excel-input", "excel-file-name", "Excel");
+    setupUpload("upload-html", "html-input", "html-file-name", "HTML");
+
+    const urlInput = document.getElementById("url-input");
+    urlInput.addEventListener("input", (e) => {
+      const val = e.target.value.trim();
+      if (isLoginGatedUrl(val)) {
+        document.getElementById("url-auth-alert").classList.remove("hidden");
+        setInputReady(false);
+      } else {
+        document.getElementById("url-auth-alert").classList.add("hidden");
+        setInputReady(!!val);
+      }
+    });
+    urlInput.addEventListener("focus", (e) => {
+      if (!e.target.value.trim()) {
+        e.target.value = "https://www.walkerdunlop.com/about-us/our-team";
+        setInputReady(true);
+      }
+    });
+
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const panel = tab.dataset.tab;
+        if (panel === "panel-excel") setActiveInput("excel");
+        else if (panel === "panel-html") setActiveInput("html");
+        else if (panel === "panel-url") setActiveInput("url");
+      });
+    });
+
+    document.getElementById("upload-excel").addEventListener("click", () => {
+      setTimeout(() => {
+        if (!inputReady && activeInput === "excel") {
+          const name = p2 ? "cref2025_prospect_list.xlsx" : "2026_Brokers_Production_0609.xlsx";
+          document.getElementById("excel-file-name").textContent = "✓ Excel: " + name;
+          document.getElementById("excel-file-name").classList.remove("hidden");
+          setInputReady(true);
+        }
+      }, 400);
+    });
+
+    document.getElementById("upload-html").addEventListener("click", () => {
+      setTimeout(() => {
+        if (!inputReady && activeInput === "html") {
+          document.getElementById("html-file-name").textContent = "✓ HTML: cref2025_attendee_directory.html";
+          document.getElementById("html-file-name").classList.remove("hidden");
+          setInputReady(true);
+        }
+      }, 400);
+    });
+
+    document.getElementById("btn-extract").addEventListener("click", () => {
+      let rows;
+      if (p2) {
+        if (activeInput === "excel") rows = [...EXTRACTED_PROSPECTS_EXCEL];
+        else rows = [...EXTRACTED_PROSPECTS];
+        AppState.setInputType(activeInput === "excel" ? "excel" : activeInput === "html" ? "html" : "url");
+      } else {
+        rows = [...EXTRACTED_BROKERS];
+        AppState.setInputType("excel");
+      }
+      AppState.setExtracted(rows);
+      AppState.setBrokers(null);
+      AppState.setProcessingComplete(false);
+      window.location.href = "preview.html";
+    });
+  </script>
+</body>
+</html>

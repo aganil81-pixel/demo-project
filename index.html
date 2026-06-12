@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CommLoan Broker Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header" id="site-header"></header>
+    <main class="main-content">
+      <section class="hero">
+        <h1>Broker Intelligence &amp; Scoring</h1>
+        <p>AI-powered CRE broker research, enrichment, and prioritization for CommLoan outreach campaigns.</p>
+      </section>
+
+      <div class="mode-cards" id="mode-cards">
+        <div class="mode-card" data-mode="p1" id="mode-p1">
+          <div class="mode-label">Mode P1</div>
+          <h3>Verify &amp; Enrich</h3>
+          <p>Upload your existing broker list and enrich each row with verified CRE data, deal signals, and personalization hooks.</p>
+          <ul>
+            <li>Excel workbook upload</li>
+            <li>Identity &amp; employment verification</li>
+            <li>Deal signals &amp; personalization</li>
+            <li>CSV &amp; Research Pack export</li>
+          </ul>
+        </div>
+        <div class="mode-card" data-mode="p2" id="mode-p2">
+          <div class="mode-label">Mode P2</div>
+          <h3>Prospect &amp; Score</h3>
+          <p>Discover new brokers from URLs or lists, score against 7 criteria, and prioritize outreach with broker cards.</p>
+          <ul>
+            <li>Excel, HTML, or URL input</li>
+            <li>7-criterion broker scoring engine</li>
+            <li>Priority tier assignment</li>
+            <li>Broker cards &amp; dashboard</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="text-center">
+        <button class="btn btn-primary btn-lg" id="btn-start" disabled>Select a mode to continue</button>
+      </div>
+    </main>
+  </div>
+
+  <div class="demo-overlay hidden" id="demo-overlay">
+    <div class="demo-modal">
+      <h2>Enter Demo</h2>
+      <p>Prototype mode — no credentials required. Click below to start the interactive demo.</p>
+      <button class="btn btn-primary" style="width:100%" id="btn-enter-demo">Enter Demo →</button>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/prospects-data.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    renderHeader("index.html");
+
+    let selectedMode = AppState.getMode();
+    const cards = document.querySelectorAll(".mode-card");
+    const btnStart = document.getElementById("btn-start");
+    const overlay = document.getElementById("demo-overlay");
+
+    function selectMode(mode) {
+      selectedMode = mode;
+      cards.forEach((c) => c.classList.toggle("selected", c.dataset.mode === mode));
+      btnStart.disabled = false;
+      btnStart.textContent = mode === "p2" ? "Start P2 — Prospect & Score →" : "Start P1 — Verify & Enrich →";
+    }
+
+    if (selectedMode) selectMode(selectedMode);
+
+    cards.forEach((card) => {
+      card.addEventListener("click", () => selectMode(card.dataset.mode));
+    });
+
+    btnStart.addEventListener("click", () => {
+      if (!selectedMode) return;
+      AppState.setMode(selectedMode);
+      if (!AppState.isDemo()) {
+        overlay.classList.remove("hidden");
+      } else {
+        window.location.href = "input.html";
+      }
+    });
+
+    document.getElementById("btn-enter-demo").addEventListener("click", () => {
+      AppState.enterDemo();
+      AppState.set({ extracted: null, brokers: null, previewApproved: false, processingComplete: false, inputType: "excel" });
+      overlay.classList.add("hidden");
+      window.location.href = "input.html";
+    });
+
+    if (AppState.isDemo() && selectedMode) {
+      btnStart.textContent = "Continue to Input →";
+    }
+  </script>
+</body>
+</html>
